@@ -9,10 +9,10 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM
 
 # Load Data
-company = 'FB'
+company = 'IBM'
 
-start = dt.datetime(2012, 1, 1)  # time point we want to start the data from
-end = dt.datetime(2020, 1, 1)
+start = dt.datetime(2010, 1, 1)  # time point we want to start the data from
+end = dt.datetime(2014, 12, 31)
 
 data = web.DataReader(company, 'yahoo', start, end)  # getting data from yahoo finance API
 
@@ -59,14 +59,55 @@ model.fit(x_train, y_train, epochs=25, batch_size=32)
 # Test the Model Accuracy on Existing Data
 
 # Load Test Data
-test_start = dt.datetime(2020, 1, 1)
-test_end = dt.datetime.now()
+test_start = dt.datetime(2015, 1, 1)  # data model has not seen before
+test_end = dt.datetime(2016, 6, 1)
 
 test_data = web.DataReader(company, 'yahoo', test_start, test_end)
-actual_prices = test_data['Close'].values
+actual_prices = test_data['Close'].values  # sqaure brackets!
 
-total_dataset = pd.concat((data['Close'], test_data['Close']), axis=0)
+total_dataset = pd.concat((data['Close'], test_data['Close']),
+                          axis=0)  # combines training data and test data
 
+# what the model will see as input so it can predict the next price
 model_inputs = total_dataset[len(total_dataset)-len(test_data)-prediction_days:].values
 model_inputs = model_inputs.reshape(-1, 1)
-model_inputs = scaler.transform(model_inputs)
+model_inputs = scaler.transform(model_inputs)  # scale it down
+
+
+# Make Predictions on Test DataReader
+x_test = []
+for i in range(prediction_days, model_inputs.shape[0]):
+    x_test.append(model_inputs[i - prediction_days:i])
+
+x_test = np.array(x_test)
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+
+predicted_prices = model.predict(x_test)  # note that now the prices will be scaled
+predicted_prices = scaler.inverse_transform(
+    predicted_prices.reshape(predicted_prices[:, :, 0].shape))
+
+# Plot the Test Predictions
+plt.plot(actual_prices, color="black", label=f"Actual {company} Price")
+plt.plot(predicted_prices[:, -1], color="red", label=f"Predicted {company} Price")
+plt.title(f"{company} Share Price")
+plt.xlabel('Time')
+plt.ylabel(f"{company} Share Price")
+plt.legend()
+plt.show()
+
+# Predicting Next Day
+
+real_data = [model_inputs[len(model_inputs)-prediction_days:len(model_inputs+1), 0]]
+real_data = np.array(real_data)
+real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1]))
+
+# print(scaler.inverse_transform(real_data[-1]))
+
+# real data is the input and will predict next day we dont know
+prediction = model.predict(real_data.reshape(real_data.shape[0], 60, 1))
+prediction = scaler.inverse_transform(prediction.reshape(prediction.shape[:2]))
+print(f"Prediction: {prediction}")
+
+#why are the lines so close
+#generate to try and predict next 4 days
+#pick 5 different stocks 
